@@ -24,6 +24,20 @@ from reportlab.pdfgen.canvas import Canvas
 from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame
 import tempfile
 import re
+from io import BytesIO
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+    PageBreak,
+    KeepTogether,
+)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.colors import HexColor, black, white
+from reportlab.lib.units import inch
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY, TA_RIGHT
 
 import json
 
@@ -240,8 +254,8 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
 
 @router.get("/download-pdf/{session_id}")
 async def download_pdf(session_id: str, db: AsyncSession = Depends(get_db)):
-    """Download trip itinerary as PDF"""
-    print(f"\n[ZZ-DEBUG] PDF download requested for session: {session_id}")
+    """Download trip itinerary as markdown text file"""
+    print(f"\n[ZZ-DEBUG] Markdown download requested for session: {session_id}")
 
     try:
         # Get the itinerary from database
@@ -253,265 +267,465 @@ async def download_pdf(session_id: str, db: AsyncSession = Depends(get_db)):
             print(f"\n[ZZ-DEBUG] No itinerary found for session: {session_id}")
             raise HTTPException(status_code=404, detail="Trip plan not found")
 
-        # Create PDF in memory
-        pdf_buffer = generate_pdf(itinerary.itinerary, session_id)
+        # Parse the JSON response to get clean markdown
+        try:
+            import json
 
-        # Create temporary file
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-        temp_file.write(pdf_buffer)
+            itinerary_data = json.loads(itinerary.itinerary)
+            markdown_content = itinerary_data.get("response", itinerary.itinerary)
+        except json.JSONDecodeError:
+            # If not JSON, use raw content
+            markdown_content = itinerary.itinerary
+
+        # Create temporary text file with markdown content
+        temp_file = tempfile.NamedTemporaryFile(
+            delete=False, suffix=".txt", mode="w", encoding="utf-8"
+        )
+        temp_file.write(markdown_content)
         temp_file.close()
 
-        print(f"\n[ZZ-DEBUG] PDF generated successfully for session: {session_id}")
+        print(
+            f"\n[ZZ-DEBUG] Markdown file generated successfully for session: {session_id}"
+        )
 
         return FileResponse(
             path=temp_file.name,
-            filename=f"ZoomZoot-TripPlan-{session_id}.pdf",
-            media_type="application/pdf",
+            filename=f"ZoomZoot-TripPlan-{session_id}.txt",
+            media_type="text/plain",
         )
 
     except Exception as e:
-        print(f"\n[ZZ-DEBUG] Error generating PDF: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+        print(f"\n[ZZ-DEBUG] Error generating markdown file: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate markdown file: {str(e)}"
+        )
 
 
 def generate_pdf(itinerary_text: str, session_id: str) -> bytes:
-    """Generate PDF from itinerary text with working clickable links"""
-    from io import BytesIO
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.colors import blue, black, grey
-
-    # Custom PDF class that handles links properly
-    class LinkEnabledDocTemplate(SimpleDocTemplate):
-        def __init__(self, *args, **kwargs):
-            SimpleDocTemplate.__init__(self, *args, **kwargs)
-
-        def afterPage(self):
-            """Called after each page is rendered - this is where we add link functionality"""
-            canvas = self.canv
-            # Enable proper link handling
-            canvas.setAuthor("ZoomZoot Travel Planner")
-            canvas.setTitle("Travel Itinerary")
-            canvas.setSubject("Trip Planning Document")
+    """Generate a beautiful, professional PDF from itinerary text"""
 
     buffer = BytesIO()
-    doc = LinkEnabledDocTemplate(buffer, pagesize=letter, topMargin=1 * inch)
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        topMargin=1 * inch,
+        bottomMargin=1 * inch,
+        leftMargin=0.75 * inch,
+        rightMargin=0.75 * inch,
+    )
 
-    # Create styles
+    # Define beautiful color scheme
+    brand_blue = HexColor("#0066cc")
+    dark_blue = HexColor("#003d7a")
+    light_blue = HexColor("#e6f2ff")
+    dark_gray = HexColor("#2c3e50")
+    medium_gray = HexColor("#7f8c8d")
+    light_gray = HexColor("#f8f9fa")
+    success_green = HexColor("#27ae60")
+    warning_orange = HexColor("#f39c12")
+
+    # Create elegant styles
     styles = getSampleStyleSheet()
 
-    title_style = ParagraphStyle(
-        "CustomTitle",
-        parent=styles["Heading1"],
-        fontSize=20,
-        spaceAfter=30,
-        textColor=blue,
+    # Brand title style
+    brand_title_style = ParagraphStyle(
+        "BrandTitle",
+        parent=styles["Title"],
+        fontSize=28,
+        textColor=brand_blue,
+        spaceAfter=10,
+        alignment=TA_CENTER,
+        fontName="Helvetica-Bold",
+        letterSpacing=2,
     )
-    heading_style = ParagraphStyle(
-        "CustomHeading",
-        parent=styles["Heading2"],
+
+    # Elegant subtitle
+    elegant_subtitle_style = ParagraphStyle(
+        "ElegantSubtitle",
+        parent=styles["Normal"],
         fontSize=14,
-        spaceAfter=12,
-        textColor=black,
-        spaceBefore=6,
+        textColor=medium_gray,
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        fontName="Helvetica-Oblique",
     )
-    normal_style = ParagraphStyle(
-        "CustomNormal",
+
+    # Section title style
+    section_title_style = ParagraphStyle(
+        "SectionTitle",
+        parent=styles["Heading1"],
+        fontSize=18,
+        textColor=dark_blue,
+        spaceAfter=15,
+        spaceBefore=25,
+        fontName="Helvetica-Bold",
+        borderWidth=0,
+        borderPadding=0,
+    )
+
+    # Day title style
+    day_title_style = ParagraphStyle(
+        "DayTitle",
+        parent=styles["Heading2"],
+        fontSize=16,
+        textColor=white,
+        spaceAfter=12,
+        spaceBefore=20,
+        fontName="Helvetica-Bold",
+        backColor=brand_blue,
+        borderPadding=12,
+        borderRadius=8,
+    )
+
+    # Activity text style
+    activity_text_style = ParagraphStyle(
+        "ActivityText",
         parent=styles["Normal"],
         fontSize=11,
-        spaceAfter=6,
-        leading=14,
-        textColor=black,
+        textColor=dark_gray,
+        spaceAfter=8,
+        leftIndent=25,
+        fontName="Helvetica",
+        leading=18,
+        bulletIndent=15,
     )
 
-    # Build PDF content
+    # Link style
+    link_style = ParagraphStyle(
+        "LinkStyle",
+        parent=styles["Normal"],
+        fontSize=11,
+        textColor=success_green,
+        spaceAfter=12,
+        leftIndent=25,
+        fontName="Helvetica-Bold",
+    )
+
+    # Summary text style
+    summary_text_style = ParagraphStyle(
+        "SummaryText",
+        parent=styles["Normal"],
+        fontSize=12,
+        textColor=dark_gray,
+        spaceAfter=15,
+        fontName="Helvetica",
+        alignment=TA_JUSTIFY,
+        leading=20,
+        borderPadding=15,
+        backColor=light_gray,
+        borderRadius=5,
+    )
+
+    # Build beautiful PDF content
     story = []
 
-    # Title
-    story.append(Paragraph("🌍 ZoomZoot Travel Plan", title_style))
-    story.append(Spacer(1, 20))
-
-    # Session info
-    story.append(Paragraph(f"Session ID: {session_id}", normal_style))
+    # Beautiful header
+    story.append(Paragraph("ZOOMZOOT", brand_title_style))
     story.append(
-        Paragraph(
-            f"Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}",
-            normal_style,
+        Paragraph("Your Personalized Travel Itinerary", elegant_subtitle_style)
+    )
+
+    # Elegant divider line (using table)
+    divider_table = Table([[""], [""]], colWidths=[6.5 * inch], rowHeights=[2, 2])
+    divider_table.setStyle(
+        TableStyle(
+            [
+                ("LINEBELOW", (0, 0), (-1, 0), 2, brand_blue),
+                ("LINEBELOW", (0, 1), (-1, 1), 1, light_blue),
+            ]
         )
     )
+    story.append(divider_table)
     story.append(Spacer(1, 20))
 
-    # Process itinerary text line by line
-    lines = itinerary_text.split("\n")
+    # Document info in elegant table
+    info_data = [
+        ["Session ID", session_id],
+        ["Generated", datetime.now().strftime("%B %d, %Y at %I:%M %p")],
+    ]
 
-    for line in lines:
-        line = line.strip()
-        if not line:
-            story.append(Spacer(1, 6))
-            continue
+    info_table = Table(info_data, colWidths=[2 * inch, 4.5 * inch])
+    info_table.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 11),
+                ("TEXTCOLOR", (0, 0), (0, -1), dark_blue),
+                ("TEXTCOLOR", (1, 0), (1, -1), dark_gray),
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [light_gray, white]),
+                ("GRID", (0, 0), (-1, -1), 0.5, HexColor("#dee2e6")),
+                ("PADDING", (0, 0), (-1, -1), 12),
+            ]
+        )
+    )
 
-        # Process the line for formatting and links
-        processed_line = process_line_with_working_links(line)
-
-        # Determine if it's a heading
-        if is_heading_line(processed_line):
-            story.append(Paragraph(processed_line, heading_style))
-        else:
-            story.append(Paragraph(processed_line, normal_style))
-
-    # Add footer
+    story.append(info_table)
     story.append(Spacer(1, 30))
+
+    # Parse the itinerary data (handle both JSON and text formats)
+    try:
+        # Try to parse as JSON first (from trip planner)
+        import json
+
+        itinerary_data = json.loads(itinerary_text)
+        response_text = itinerary_data.get("response", itinerary_text)
+    except json.JSONDecodeError:
+        # If not JSON, treat as plain text
+        response_text = itinerary_text
+
+    # Process and format the content with professional structure
+    formatted_content = process_structured_itinerary(response_text)
+
+    # Add formatted content to story with proper spacing and indentation
+    for item in formatted_content:
+        if item["type"] == "section_title":
+            story.append(Spacer(1, 15))  # Space before section
+            story.append(Paragraph(item["content"], section_title_style))
+            story.append(Spacer(1, 10))  # Space after section
+        elif item["type"] == "day_title":
+            story.append(Spacer(1, 20))  # Extra space before new day
+            story.append(Paragraph(item["content"], day_title_style))
+            story.append(Spacer(1, 8))  # Space after day title
+        elif item["type"] == "activity":
+            # Add left margin for better visual hierarchy
+            indented_content = f"&nbsp;&nbsp;&nbsp;&nbsp;{item['content']}"
+            story.append(Paragraph(indented_content, activity_text_style))
+            story.append(Spacer(1, 5))  # Small space between activities
+        elif item["type"] == "link":
+            # Extra indentation for booking links
+            indented_content = (
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{item['content']}"
+            )
+            story.append(Paragraph(indented_content, link_style))
+            story.append(Spacer(1, 8))  # More space after links
+        elif item["type"] == "summary":
+            story.append(Spacer(1, 15))  # Space before summary
+            story.append(Paragraph(item["content"], summary_text_style))
+        elif item["type"] == "spacer":
+            story.append(Spacer(1, item["height"]))
+
+    # Beautiful footer
+    story.append(Spacer(1, 50))
+
+    footer_divider = Table([[""], [""]], colWidths=[6.5 * inch], rowHeights=[1, 1])
+    footer_divider.setStyle(
+        TableStyle(
+            [
+                ("LINEABOVE", (0, 0), (-1, 0), 1, light_blue),
+                ("LINEABOVE", (0, 1), (-1, 1), 2, brand_blue),
+            ]
+        )
+    )
+    story.append(footer_divider)
+    story.append(Spacer(1, 20))
+
     footer_style = ParagraphStyle(
         "Footer",
         parent=styles["Normal"],
-        fontSize=9,
-        textColor=grey,
-        alignment=1,  # Center alignment
+        fontSize=11,
+        textColor=medium_gray,
+        alignment=TA_CENTER,
+        fontName="Helvetica",
+        spaceAfter=8,
     )
-    story.append(Paragraph("Generated by ZoomZoot AI Travel Assistant", footer_style))
-    story.append(Paragraph("www.zoomzoot.com", footer_style))
 
-    # Build PDF
+    story.append(Paragraph("<b>Thank you for choosing ZoomZoot!</b>", footer_style))
+    story.append(Paragraph("For support and inquiries: www.zoomzoot.com", footer_style))
+
+    # Build the PDF
     doc.build(story)
 
     pdf_value = buffer.getvalue()
     buffer.close()
-
     return pdf_value
 
 
-def process_line_with_working_links(text: str) -> str:
-    """Process text with proper ReportLab link syntax that actually works"""
+def process_structured_itinerary(text: str) -> list:
+    """Process itinerary text into structured format for beautiful PDF rendering"""
+    content_items = []
 
-    # Handle bold markdown **text**
-    text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
+    # Split into lines and process
+    lines = text.split("\n")
 
-    # Process different link patterns and convert to working ReportLab links
-    # Pattern 1: **[link text](url)** (bold links)
-    bold_link_pattern = r"<b>\[([^\]]+)\]\(([^)]+)\)</b>"
-    # Pattern 2: [link text](url) (regular links)
-    link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
 
-    def replace_link(match):
-        link_text = match.group(1)
-        url = match.group(2)
+        # Clean bullets and extra formatting first
+        original_line = line
+        line = re.sub(r"^[-•*]\s*", "", line)  # Remove bullets
+        line = re.sub(r"^Booking:\s*", "", line)  # Remove standalone "Booking:"
 
-        # Clean and format the link text
-        if "Book" in link_text and (
-            "flight" in link_text.lower() or "Flight" in link_text
+        # Skip if line becomes empty after cleaning
+        if not line.strip():
+            continue
+
+        # Detect and format different content types
+        if "Flight Details:" in original_line or (
+            "flight" in line.lower() and ("book" in line.lower() or "https://" in line)
         ):
-            display_text = f"✈️ {link_text}"
-        elif any(
-            word in link_text for word in ["Hotel", "Resort", "Spa", "Albar", "Diamond"]
+            content_items.append(
+                {"type": "section_title", "content": "✈️ FLIGHT INFORMATION"}
+            )
+            # Process flight links
+            flight_content = clean_and_format_line(
+                line.replace("Flight Details:", "").strip()
+            )
+            if flight_content and "book" in flight_content.lower():
+                content_items.append({"type": "link", "content": flight_content})
+
+        elif line.startswith("Day ") and (":" in line or "—" in line):
+            # Day headers
+            day_content = clean_and_format_line(line)
+            content_items.append({"type": "day_title", "content": f"📅 {day_content}"})
+            content_items.append({"type": "spacer", "height": 5})
+
+        elif "morning" in line.lower() and (
+            ":" in line or line.lower().startswith("morning")
         ):
-            display_text = f"🏨 {link_text}"
+            content = clean_and_format_line(line.replace("Morning:", "").strip())
+            if content:
+                content_items.append(
+                    {"type": "activity", "content": f"🌅 <b>Morning:</b> {content}"}
+                )
+
+        elif "afternoon" in line.lower() and (
+            ":" in line or line.lower().startswith("afternoon")
+        ):
+            content = clean_and_format_line(line.replace("Afternoon:", "").strip())
+            if content:
+                content_items.append(
+                    {"type": "activity", "content": f"☀️ <b>Afternoon:</b> {content}"}
+                )
+
+        elif "evening" in line.lower() and (
+            ":" in line or line.lower().startswith("evening")
+        ):
+            content = clean_and_format_line(line.replace("Evening:", "").strip())
+            if content:
+                content_items.append(
+                    {"type": "activity", "content": f"🌆 <b>Evening:</b> {content}"}
+                )
+
+        elif "https://" in line and (
+            "booking" in original_line.lower() or "book" in line.lower()
+        ):
+            # Booking links - avoid duplication
+            content = clean_and_format_line(line)
+            if content and not any(
+                item.get("content", "").endswith(content) for item in content_items[-3:]
+            ):
+                content_items.append({"type": "link", "content": content})
+
+        elif "overnight" in line.lower() or "stay" in line.lower():
+            # Accommodation info
+            content = clean_and_format_line(line)
+            if content:
+                content_items.append({"type": "activity", "content": f"🏨 {content}"})
+
         else:
-            display_text = link_text
+            # Regular content - avoid duplicates and ensure substantial content
+            content = clean_and_format_line(line)
+            if (
+                content
+                and len(content) > 15  # Only substantial content
+                and not any(
+                    "booking" in item.get("content", "").lower()
+                    for item in content_items[-2:]
+                )  # Avoid booking duplicates
+                and content
+                not in [
+                    item.get("content", "") for item in content_items[-3:]
+                ]  # Avoid exact duplicates
+            ):
+                content_items.append({"type": "activity", "content": content})
 
-        # Use proper ReportLab link syntax with escaped URL
-        # The key is using 'a' tag instead of 'link' tag
-        safe_url = url.replace("&", "&amp;")  # Escape ampersands
-        return f'<a href="{safe_url}" color="blue"><u><b>{display_text}</b></u></a>'
-
-    # Replace bold links first, then regular links
-    text = re.sub(bold_link_pattern, replace_link, text)
-    text = re.sub(link_pattern, replace_link, text)
-
-    # Format specific sections
-    if "Flight Summary:" in text:
-        text = text.replace("Flight Summary:", "✈️ <b>Flight Summary:</b>")
-
-    if "Trip Summary:" in text:
-        text = text.replace("Trip Summary:", "📋 <b>Trip Summary:</b>")
-
-    if "Booking:" in text:
-        text = text.replace("Booking:", "🔗 <b>Booking:</b>")
-
-    # Format activities
-    if text.startswith("- Morning:"):
-        text = text.replace("- Morning:", "🌅 <b>Morning:</b>")
-    elif text.startswith("- Afternoon:"):
-        text = text.replace("- Afternoon:", "☀️ <b>Afternoon:</b>")
-    elif text.startswith("- Evening:"):
-        text = text.replace("- Evening:", "🌆 <b>Evening:</b>")
-
-    # Format day headings
-    day_pattern = r"Day (\d+) — (.+?):"
-    text = re.sub(day_pattern, r"📅 <b>Day \1 — \2</b>", text)
-
-    return text
+    return content_items
 
 
-def is_heading_line(text: str) -> bool:
-    """Check if text should be formatted as a heading"""
-    heading_keywords = [
-        "📅 <b>Day",
-        "✈️ <b>Flight",
-        "🏨 <b>Hotel",
-        "📋 <b>Trip",
-        "Flight Summary",
-        "Trip Summary",
-        "Itinerary",
-    ]
-    return any(keyword in text for keyword in heading_keywords)
+def clean_and_format_line(text: str) -> str:
+    """Clean and format a line with proper link handling"""
+    if not text or text.isspace():
+        return ""
 
+    # Clean multiple bullets and extra formatting
+    text = re.sub(r"^[-•*]\s*[-•*]\s*", "", text)  # Double bullets
+    text = re.sub(r"^[-•*]\s*", "", text)  # Single bullets
+    text = re.sub(r"^Booking:\s*", "", text)  # Remove "Booking:" prefix
+    text = text.strip()
 
-def process_links_in_text(text: str) -> str:
-    """Convert markdown-style links to ReportLab clickable links with better formatting"""
+    if not text:
+        return ""
 
-    # First handle bold markdown **text**
+    # Handle bold markdown **text** first
     text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
 
-    # Handle different link patterns:
-    # Pattern 1: **[link text](url)**
-    bold_link_pattern = r"<b>\[([^\]]+)\]\(([^)]+)\)</b>"
+    # Check if text already contains processed links to avoid double processing
+    if "<a href=" in text:
+        return text
 
-    # Pattern 2: [link text](url)
-    link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
-
+    # Process links with beautiful formatting - but avoid double processing
     def replace_link(match):
         link_text = match.group(1)
         url = match.group(2)
 
-        # Clean up the link text for better display
-        if "Book" in link_text and (
-            "flight" in link_text.lower() or "Flight" in link_text
+        # Determine link type and apply appropriate styling
+        if (
+            "flight" in link_text.lower()
+            or "aviasales" in url.lower()
+            or "Book this flight" in link_text
         ):
             display_text = "✈️ Book Flight"
-        elif (
-            "Hotel" in link_text
-            or "Resort" in link_text
-            or "Spa" in link_text
-            or "Albar" in link_text
-            or "Diamond" in link_text
+            color = "#e74c3c"
+        elif any(
+            word in link_text.lower()
+            for word in [
+                "hotel",
+                "resort",
+                "spa",
+                "albar",
+                "diamond",
+                "maison",
+                "booking",
+            ]
         ):
             display_text = f"🏨 {link_text}"
+            color = "#27ae60"
         else:
             display_text = link_text
+            color = "#3498db"
 
-        # Create proper clickable link using reportlab link syntax
-        return f'<link href="{url}" color="blue"><u>{display_text}</u></link>'
+        # Create proper clickable link (ReportLab format) with simpler escaping
+        safe_url = url.replace("&", "&amp;")
+        return f'<a href="{safe_url}" color="{color}"><u><b>{display_text}</b></u></a>'
 
-    # Replace bold links first, then regular links
-    processed_text = re.sub(bold_link_pattern, replace_link, text)
-    processed_text = re.sub(link_pattern, replace_link, processed_text)
+    # Apply link processing for markdown links
+    link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
+    text = re.sub(link_pattern, replace_link, text)
 
-    # Improve formatting of specific sections
-    if "Flight Summary:" in processed_text:
-        processed_text = processed_text.replace(
-            "Flight Summary:", "✈️ <b>Flight Summary:</b>"
-        )
+    # Handle direct URLs that aren't in markdown format
+    def replace_direct_url(match):
+        url = match.group(0)
+        if "aviasales" in url:
+            display_text = "✈️ Book Flight"
+            color = "#e74c3c"
+        elif "booking.com" in url or "hotel" in url.lower():
+            display_text = "🏨 Book Hotel"
+            color = "#27ae60"
+        else:
+            display_text = "🔗 Visit Link"
+            color = "#3498db"
 
-    if "Trip Summary:" in processed_text:
-        processed_text = processed_text.replace(
-            "Trip Summary:", "📋 <b>Trip Summary:</b>"
-        )
+        safe_url = url.replace("&", "&amp;")
+        return f'<a href="{safe_url}" color="{color}"><u><b>{display_text}</b></u></a>'
 
-    if "Booking:" in processed_text:
-        processed_text = processed_text.replace("Booking:", "🔗 <b>Booking:</b>")
+    # Process direct URLs only if no links were already processed
+    if "<a href=" not in text:
+        url_pattern = r"https?://[^\s\)\]\}]+"
+        text = re.sub(url_pattern, replace_direct_url, text)
 
-    # Improve day formatting
-    day_pattern = r"<b>Day (\d+) — ([^<]+)</b>:"
-    processed_text = re.sub(day_pattern, r"📅 <b>Day \1 — \2</b>", processed_text)
-
-    return processed_text
+    return text
