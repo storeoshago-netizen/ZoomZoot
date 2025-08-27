@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZoomZoot Travel Chat</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #chatBox { border: 1px solid #ccc; padding: 10px; height: 400px; overflow-y: scroll; margin-bottom: 10px; }
+        #chatBox div { margin: 5px 0; }
+        .user { color: blue; }
+        .bot { color: green; }
+        #inputBox { width: 80%; padding: 5px; }
+        #sendButton { padding: 5px 10px; }
+        .disabled { background-color: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h1>ZoomZoot Travel Chat</h1>
+    <div id="chatBox"></div>
+    <input type="text" id="inputBox" placeholder="Type your message...">
+    <button id="sendButton" onclick="sendMessage()">Send</button>
+
+    <script>
+        const sessionId = 'session-' + Math.random().toString(36).substr(2, 9); // Generate unique session ID
+        const chatBox = document.getElementById('chatBox');
+        const inputBox = document.getElementById('inputBox');
+        const sendButton = document.getElementById('sendButton');
+
+        function appendMessage(content, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = sender;
+            messageDiv.textContent = (sender === 'user' ? 'You: ' : 'ZoomZoot: ') + content;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to bottom
+        }
+
+        async function sendMessage() {
+            const message = inputBox.value.trim();
+            if (!message) return;
+
+            appendMessage(message, 'user');
+            inputBox.value = '';
+            sendButton.disabled = true;
+
+            try {
+                const response = await fetch('http://localhost:8000/api/v1/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId, message })
+                });
+                const data = await response.json();
+                appendMessage(data.message, 'bot');
+
+                if (data.finished) {
+                    inputBox.disabled = true;
+                    sendButton.disabled = true;
+                    sendButton.classList.add('disabled');
+                    appendMessage('Conversation complete! Check your itinerary.', 'bot');
+                }
+            } catch (error) {
+                appendMessage('Error: Could not connect to server.', 'bot');
+            } finally {
+                sendButton.disabled = false;
+            }
+        }
+
+        // Allow sending message with Enter key
+        inputBox.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>

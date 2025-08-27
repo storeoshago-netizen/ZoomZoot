@@ -1,0 +1,29 @@
+Trip Summary:
+Embark on a delightful 4-day adventure in Paris, exploring iconic landmarks, museums, and charming neighborhoods. Your journey begins with visits to the Eiffel Tower and Louvre Museum, followed by exploring Montmartre and the Palace of Versailles. Enjoy shopping at Champs-Élysées, a cabaret show at Moulin Rouge, and a romantic dinner cruise. Conclude your trip with explorations of Le Marais and the Latin Quarter, ending with an opera performance at Palais Garnier.
+
+Flight Summary:
+Book your flight for the trip to Paris by clicking on [✈️ Book Flight](https://www.aviasales.com/search/CMB0509PAR0909?marker=659627&currency=USD).
+
+Day 1 — Paris
+- Morning: Visit the iconic Eiffel Tower.
+- Afternoon: Explore the Louvre Museum.
+- Evening: Enjoy a stroll along the Seine River and dinner at a Parisian bistro.
+- Booking: [🏨 Terminus Orléans Paris](https://search.hotellook.com/?marker=659627&currency=USD&destination=Paris&checkIn=2025-09-05&checkOut=2025-09-06&hotelId=430324)
+
+Day 2 — Paris
+- Morning: Explore Notre-Dame Cathedral.
+- Afternoon: Shop at Champs-Élysées.
+- Evening: Experience a cabaret show at Moulin Rouge.
+- Booking: [🏨 Hôtel de Roubaix](https://search.hotellook.com/?marker=659627&currency=USD&destination=Paris&checkIn=2025-09-06&checkOut=2025-09-07&hotelId=430668)
+
+Day 3 — Paris
+- Morning: Discover Montmartre and Sacré-Cœur Basilica.
+- Afternoon: Visit Palace of Versailles.
+- Evening: Enjoy a dinner cruise on the Seine River.
+- Booking: [🏨 Libertel Gare de L'Est Francais](https://search.hotellook.com/?marker=659627&currency=USD&destination=Paris&checkIn=2025-09-07&checkOut=2025-09-08&hotelId=196556)
+
+Day 4 — Paris
+- Morning: Explore Le Marais district.
+- Afternoon: Wander in the Latin Quarter.
+- Evening: Visit Palais Garnier opera house.
+- Booking: [🏨 Motel One Paris-Porte Dorée](https://search.hotellook.com/?marker=659627&currency=USD&destination=Paris&checkIn=2025-09-08&checkOut=2025-09-09&hotelId=1899500114)
